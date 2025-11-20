@@ -17,9 +17,6 @@ if TYPE_CHECKING:
 @dynamic_command(
     short_help="Backport a merged PR to a release branch",
     context_settings={"help_option_names": [], "ignore_unknown_options": True},
-    dependencies=[
-        "PyGithub==1.59.1",
-    ],
 )
 @pass_app
 def cmd(
