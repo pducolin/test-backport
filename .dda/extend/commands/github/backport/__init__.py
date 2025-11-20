@@ -97,10 +97,6 @@ def cmd(
         date=original_commit.commit.author.date.isoformat(),
     )
 
-    if author is not InputGitAuthor:
-        app.display_error(f"Author is not an InputGitAuthor: {author}")
-        return
-
     # Create backport commit
     backport_commit = repo.create_git_commit(
         message=original_commit.commit.message,
