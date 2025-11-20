@@ -8,7 +8,7 @@ from github import Github
 
 from dda.cli.base import dynamic_command, pass_app
 
-from dda.CI import running_in_ci
+from dda.utils.ci import running_in_ci
 
 if TYPE_CHECKING:
     from dda.cli.application import Application
