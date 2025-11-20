@@ -4,7 +4,7 @@ import os
 import json
 
 from typing import TYPE_CHECKING
-from github import Github
+from github import Github, InputGitAuthor
 
 from dda.cli.base import dynamic_command, pass_app
 
@@ -96,7 +96,11 @@ def cmd(
         message=original_commit.commit.message,
         tree=repo.get_git_tree(original_commit.commit.tree.sha),
         parents=[target_head_commit],
-        author=original_commit.commit.author,
+        author=InputGitAuthor(
+            name=original_commit.commit.author.name,
+            email=original_commit.commit.author.email,
+            date=original_commit.commit.author.date,
+        ),
         # Do NOT set committer -> GitHub App/Actions user (Verified)
     )
 
