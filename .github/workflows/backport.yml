@@ -1,0 +1,40 @@
+name: Backport PR
+
+on:
+  pull_request:
+    types:
+      - closed
+      - labeled
+
+jobs:
+  backport:
+    name: Backport PR
+    runs-on: ubuntu-latest
+    if: >
+      github.event.pull_request.merged
+      && (
+        github.event.action == 'closed'
+        || (
+          github.event.action == 'labeled'
+          && contains(github.event.label.name, 'backport')
+        )
+      )
+    permissions:
+      contents: write       # create commits / branches
+      pull-requests: write  # create PRs
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install dda
+        uses: DataDog/datadog-agent-dev@00e4a423088309efce1d5ba6b8c5366eef648710 # commit hash from the DataDog/datadog-agent-dev's install branch
+        with: 
+          version: v0.30.2 # DataDog/datadog-agent-dev version
+          features: github
+
+      - name: Run backport script
+        env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+            GITHUB_EVENT_PATH: ${{ github.event_path }}
+        run: dda github backport
