@@ -66,7 +66,10 @@ def cmd(
     full_repo_name = f"{repo_owner}/{repo_name}"
 
     # Authenticate to GitHub and get the repository
-    token = app.config.github.auth.token
+    token = os.getenv("GITHUB_TOKEN")
+    if not token:
+        app.display_error("GITHUB_TOKEN is not set")
+        return
     gh = Github(token)
     repo = gh.get_repo(full_repo_name)
 
