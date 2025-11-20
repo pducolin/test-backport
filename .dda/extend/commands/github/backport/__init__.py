@@ -91,6 +91,25 @@ def cmd(
     # Get the original merge commit object
     original_commit = repo.get_commit(merge_commit_sha)
 
+    app.display(f"Original commit author: {original_commit.commit.author}")
+    app.display(f"Original commit author date: {original_commit.commit.author.date}")
+    app.display(
+        f"Original commit author date type: {type(original_commit.commit.author.date)}"
+    )
+    app.display(
+        f"Original commit author date ISO: {original_commit.commit.author.date.isoformat()}"
+    )
+
+    author = {
+        "name": original_commit.commit.author.name,
+        "email": original_commit.commit.author.email,
+        "date": original_commit.commit.author.date.isoformat(),
+    }
+
+    if author is not InputGitAuthor:
+        app.display_error(f"Author is not an InputGitAuthor: {author}")
+        return
+
     # Create backport commit
     backport_commit = repo.create_git_commit(
         message=original_commit.commit.message,
