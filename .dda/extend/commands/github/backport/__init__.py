@@ -99,7 +99,7 @@ def cmd(
         author=InputGitAuthor(
             name=original_commit.commit.author.name,
             email=original_commit.commit.author.email,
-            date=original_commit.commit.author.date,
+            date=original_commit.commit.author.date.isoformat(),
         ),
         # Do NOT set committer -> GitHub App/Actions user (Verified)
     )
