@@ -103,7 +103,7 @@ def cmd(
             message=original_commit.commit.message,
             tree=repo.get_git_tree(original_commit.commit.tree.sha),
             parents=[target_head_commit],
-            # author=author,
+            author=author,
             # Do NOT set committer -> GitHub App/Actions user (Verified)
         )
     except Exception as e:
@@ -113,14 +113,17 @@ def cmd(
     # Push the backport commit to the backport branch
     backport_branch_name = f"backport-{original_pr_number}-to-{target_branch_name}"
     app.display(f"Backport branch name: {backport_branch_name}")
+    # Check if the branch exists
+    if repo.get_git_ref(ref=f"refs/heads/{backport_branch_name}"):
+        app.display(f"Backport branch '{backport_branch_name}' already exists")
+        return
+
     try:
         repo.create_git_ref(
             ref=f"refs/heads/{backport_branch_name}", sha=backport_commit.sha
         )
     except Exception as e:
-        app.display_error(
-            f"Failed to push backport commit to '{backport_branch_name}': {e}"
-        )
+        app.display_error(f"Failed to create backport branch: {e}")
         return
 
     # Create the backport PR
@@ -146,7 +149,7 @@ ___
 
     backport_pr.add_to_labels(*backport_labels)
 
-    app.display("Backport workflow finished, PR created: {backport_pr.html_url}")
+    app.display(f"Backport workflow finished, PR created: {backport_pr.html_url}")
 
 
 def get_event() -> dict:
