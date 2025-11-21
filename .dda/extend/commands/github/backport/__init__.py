@@ -4,11 +4,11 @@ import os
 import json
 
 from typing import TYPE_CHECKING
-from github import Github
+from github import Github, InputGitAuthor
 
 from dda.cli.base import dynamic_command, pass_app
 
-from dda.CI import running_in_ci
+from dda.utils.ci import running_in_ci
 
 if TYPE_CHECKING:
     from dda.cli.application import Application
@@ -17,9 +17,6 @@ if TYPE_CHECKING:
 @dynamic_command(
     short_help="Backport a merged PR to a release branch",
     context_settings={"help_option_names": [], "ignore_unknown_options": True},
-    dependencies=[
-        "PyGithub==1.59.1",
-    ],
 )
 @pass_app
 def cmd(
@@ -69,7 +66,10 @@ def cmd(
     full_repo_name = f"{repo_owner}/{repo_name}"
 
     # Authenticate to GitHub and get the repository
-    token = app.config.github.token
+    token = os.getenv("GITHUB_TOKEN")
+    if not token:
+        app.display_error("GITHUB_TOKEN is not set")
+        return
     gh = Github(token)
     repo = gh.get_repo(full_repo_name)
 
@@ -91,17 +91,23 @@ def cmd(
     # Get the original merge commit object
     original_commit = repo.get_commit(merge_commit_sha)
 
+    author = InputGitAuthor(
+        name=original_commit.commit.author.name,
+        email=original_commit.commit.author.email,
+        # date=original_commit.commit.author.date.isoformat(),
+    )
+
     # Create backport commit
     backport_commit = repo.create_git_commit(
         message=original_commit.commit.message,
         tree=repo.get_git_tree(original_commit.commit.tree.sha),
         parents=[target_head_commit],
-        author=original_commit.commit.author,
+        author=author,
         # Do NOT set committer -> GitHub App/Actions user (Verified)
     )
 
     # Push the backport commit to the backport branch
-    backport_branch_name = f"backport/{target_branch_name}/backport-{original_pr_number}-to-{target_branch_name}"
+    backport_branch_name = f"backport-{original_pr_number}-to-{target_branch_name}"
     app.display(f"Backport branch name: {backport_branch_name}")
     try:
         repo.create_git_ref(ref=f"refs/{backport_branch_name}", sha=backport_commit.sha)
