@@ -102,7 +102,7 @@ def cmd(
         message=original_commit.commit.message,
         tree=repo.get_git_tree(original_commit.commit.tree.sha),
         parents=[target_head_commit],
-        author=author,
+        # author=author,
         # Do NOT set committer -> GitHub App/Actions user (Verified)
     )
 
