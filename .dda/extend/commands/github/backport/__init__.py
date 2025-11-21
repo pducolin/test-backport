@@ -98,19 +98,25 @@ def cmd(
     )
 
     # Create backport commit
-    backport_commit = repo.create_git_commit(
-        message=original_commit.commit.message,
-        tree=repo.get_git_tree(original_commit.commit.tree.sha),
-        parents=[target_head_commit],
-        # author=author,
-        # Do NOT set committer -> GitHub App/Actions user (Verified)
-    )
+    try:
+        backport_commit = repo.create_git_commit(
+            message=original_commit.commit.message,
+            tree=repo.get_git_tree(original_commit.commit.tree.sha),
+            parents=[target_head_commit],
+            # author=author,
+            # Do NOT set committer -> GitHub App/Actions user (Verified)
+        )
+    except Exception as e:
+        app.display_error(f"Failed to create backport commit: {e}")
+        return
 
     # Push the backport commit to the backport branch
     backport_branch_name = f"backport-{original_pr_number}-to-{target_branch_name}"
     app.display(f"Backport branch name: {backport_branch_name}")
     try:
-        repo.create_git_ref(ref=f"refs/{backport_branch_name}", sha=backport_commit.sha)
+        repo.create_git_ref(
+            ref=f"refs/heads/{backport_branch_name}", sha=backport_commit.sha
+        )
     except Exception as e:
         app.display_error(
             f"Failed to push backport commit to '{backport_branch_name}': {e}"
