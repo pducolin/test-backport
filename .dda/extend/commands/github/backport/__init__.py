@@ -94,7 +94,7 @@ def cmd(
     author = InputGitAuthor(
         name=original_commit.commit.author.name,
         email=original_commit.commit.author.email,
-        date=original_commit.commit.author.date.isoformat(),
+        # date=original_commit.commit.author.date.isoformat(),
     )
 
     # Create backport commit
