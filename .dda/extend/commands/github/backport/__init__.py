@@ -146,7 +146,7 @@ ___
 
     backport_pr.add_to_labels(*backport_labels)
 
-    app.display("Backport workflow finished, PR created: {backport_pr.html_url}")
+    app.display(f"Backport workflow finished, PR created: {backport_pr.html_url}")
 
 
 def get_event() -> dict:
