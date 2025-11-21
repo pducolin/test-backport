@@ -107,7 +107,7 @@ def cmd(
     )
 
     # Push the backport commit to the backport branch
-    backport_branch_name = f"backport/{target_branch_name}/backport-{original_pr_number}-to-{target_branch_name}"
+    backport_branch_name = f"backport-{original_pr_number}-to-{target_branch_name}"
     app.display(f"Backport branch name: {backport_branch_name}")
     try:
         repo.create_git_ref(ref=f"refs/{backport_branch_name}", sha=backport_commit.sha)
