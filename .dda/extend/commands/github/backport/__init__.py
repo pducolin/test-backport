@@ -4,11 +4,12 @@ import os
 import json
 
 from typing import TYPE_CHECKING
-from github import Github
+from github import Github, InputGitAuthor
+from github.GithubException import UnknownObjectException
 
 from dda.cli.base import dynamic_command, pass_app
 
-from dda.CI import running_in_ci
+from dda.utils.ci import running_in_ci
 
 if TYPE_CHECKING:
     from dda.cli.application import Application
@@ -17,9 +18,6 @@ if TYPE_CHECKING:
 @dynamic_command(
     short_help="Backport a merged PR to a release branch",
     context_settings={"help_option_names": [], "ignore_unknown_options": True},
-    dependencies=[
-        "PyGithub==1.59.1",
-    ],
 )
 @pass_app
 def cmd(
@@ -69,7 +67,10 @@ def cmd(
     full_repo_name = f"{repo_owner}/{repo_name}"
 
     # Authenticate to GitHub and get the repository
-    token = app.config.github.token
+    token = os.getenv("GITHUB_TOKEN")
+    if not token:
+        app.display_error("GITHUB_TOKEN is not set")
+        return
     gh = Github(token)
     repo = gh.get_repo(full_repo_name)
 
@@ -91,24 +92,35 @@ def cmd(
     # Get the original merge commit object
     original_commit = repo.get_commit(merge_commit_sha)
 
-    # Create backport commit
-    backport_commit = repo.create_git_commit(
-        message=original_commit.commit.message,
-        tree=repo.get_git_tree(original_commit.commit.tree.sha),
-        parents=[target_head_commit],
-        author=original_commit.commit.author,
-        # Do NOT set committer -> GitHub App/Actions user (Verified)
+    author = InputGitAuthor(
+        name=original_commit.commit.author.name,
+        email=original_commit.commit.author.email,
+        # date=original_commit.commit.author.date.isoformat(),
     )
 
-    # Push the backport commit to the backport branch
-    backport_branch_name = f"backport/{target_branch_name}/backport-{original_pr_number}-to-{target_branch_name}"
-    app.display(f"Backport branch name: {backport_branch_name}")
+    # Create backport commit
     try:
-        repo.create_git_ref(ref=f"refs/{backport_branch_name}", sha=backport_commit.sha)
-    except Exception as e:
-        app.display_error(
-            f"Failed to push backport commit to '{backport_branch_name}': {e}"
+        backport_commit = repo.create_git_commit(
+            message=original_commit.commit.message,
+            tree=repo.get_git_tree(original_commit.commit.tree.sha),
+            parents=[target_head_commit],
+            author=author,
+            # Do NOT set committer -> GitHub App/Actions user (Verified)
         )
+    except Exception as e:
+        app.display_error(f"Failed to create backport commit: {e}")
+        return
+
+    # Push the backport commit to the backport branch
+    backport_branch_name = f"backport-{original_pr_number}-to-{target_branch_name}"
+    app.display(f"Backport branch name: {backport_branch_name}")
+
+    try:
+        repo.create_git_ref(
+            ref=f"refs/heads/{backport_branch_name}", sha=backport_commit.sha
+        )
+    except Exception as e:
+        app.display_error(f"Failed to create backport branch: {e}")
         return
 
     # Create the backport PR
@@ -118,19 +130,23 @@ def cmd(
 ___
 
 {original_body}"""
-    backport_labels = [get_non_backport_labels(labels) + ["backport", "bot"]]
+    backport_labels = get_non_backport_labels(labels) + ["backport", "bot"]
     backport_title = f"[Backport {target_branch_name}] {original_pr.get('title')}"
 
-    backport_pr = repo.create_pull(
-        title=backport_title,
-        body=backport_body,
-        base=target_branch_name,
-        head=backport_branch_name,
-    )
+    try:
+        backport_pr = repo.create_pull(
+            title=backport_title,
+            body=backport_body,
+            base=target_branch_name,
+            head=backport_branch_name,
+        )
+    except Exception as e:
+        app.display_error(f"Failed to create backport PR: {e}")
+        return
 
     backport_pr.add_to_labels(*backport_labels)
 
-    app.display("Backport workflow finished, PR created: {backport_pr.html_url}")
+    app.display(f"Backport workflow finished, PR created: {backport_pr.html_url}")
 
 
 def get_event() -> dict:
