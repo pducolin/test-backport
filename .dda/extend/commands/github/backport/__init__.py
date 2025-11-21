@@ -102,7 +102,7 @@ def cmd(
         message=original_commit.commit.message,
         tree=repo.get_git_tree(original_commit.commit.tree.sha),
         parents=[target_head_commit],
-        author=author,
+        # author=author,
         # Do NOT set committer -> GitHub App/Actions user (Verified)
     )
 
@@ -127,12 +127,16 @@ ___
     backport_labels = [get_non_backport_labels(labels) + ["backport", "bot"]]
     backport_title = f"[Backport {target_branch_name}] {original_pr.get('title')}"
 
-    backport_pr = repo.create_pull(
-        title=backport_title,
-        body=backport_body,
-        base=target_branch_name,
-        head=backport_branch_name,
-    )
+    try:
+        backport_pr = repo.create_pull(
+            title=backport_title,
+            body=backport_body,
+            base=target_branch_name,
+            head=backport_branch_name,
+        )
+    except Exception as e:
+        app.display_error(f"Failed to create backport PR: {e}")
+        return
 
     backport_pr.add_to_labels(*backport_labels)
 
