@@ -92,11 +92,11 @@ def cmd(
     # Get the original merge commit object
     original_commit = repo.get_commit(merge_commit_sha)
 
-    author = InputGitAuthor(
-        name=original_commit.commit.author.name,
-        email=original_commit.commit.author.email,
-        # date=original_commit.commit.author.date.isoformat(),
-    )
+    # author = InputGitAuthor(
+    #     name=original_commit.commit.author.name,
+    #     email=original_commit.commit.author.email,
+    #     # date=original_commit.commit.author.date.isoformat(),
+    # )
 
     # Create backport commit
     try:
@@ -104,8 +104,8 @@ def cmd(
             message=original_commit.commit.message,
             tree=repo.get_git_tree(original_commit.commit.tree.sha),
             parents=[target_head_commit],
-            author=author,
-            # Do NOT set committer -> GitHub App/Actions user (Verified)
+            # author=author,
+            # Do NOT set committer AND author-> GitHub App/Actions user (Verified)
         )
     except Exception as e:
         app.display_error(f"Failed to create backport commit: {e}")
