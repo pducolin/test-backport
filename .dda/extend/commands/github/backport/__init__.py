@@ -78,7 +78,7 @@ def cmd(
     try:
         repo.get_branch(target_branch_name)
     except Exception as e:
-        app.display_error(
+        app.abort(
             f"Target branch '{target_branch_name}' does not exist or cannot be accessed: {e}"
         )
         return
@@ -92,23 +92,16 @@ def cmd(
     # Get the original merge commit object
     original_commit = repo.get_commit(merge_commit_sha)
 
-    # author = InputGitAuthor(
-    #     name=original_commit.commit.author.name,
-    #     email=original_commit.commit.author.email,
-    #     # date=original_commit.commit.author.date.isoformat(),
-    # )
-
     # Create backport commit
     try:
         backport_commit = repo.create_git_commit(
             message=original_commit.commit.message,
             tree=repo.get_git_tree(original_commit.commit.tree.sha),
             parents=[target_head_commit],
-            # author=author,
             # Do NOT set committer AND author-> GitHub App/Actions user (Verified)
         )
     except Exception as e:
-        app.display_error(f"Failed to create backport commit: {e}")
+        app.abort(f"Failed to create backport commit: {e}")
         return
 
     # Push the backport commit to the backport branch
@@ -120,7 +113,7 @@ def cmd(
             ref=f"refs/heads/{backport_branch_name}", sha=backport_commit.sha
         )
     except Exception as e:
-        app.display_error(f"Failed to create backport branch: {e}")
+        app.abort(f"Failed to create backport branch: {e}")
         return
 
     # Create the backport PR
@@ -129,7 +122,12 @@ def cmd(
 
 ___
 
-{original_body}"""
+{original_body}
+
+___
+
+Co-authored-by: {original_commit.commit.author.name} <{original_commit.commit.author.email}>
+"""
     backport_labels = get_non_backport_labels(labels) + ["backport", "bot"]
     backport_title = f"[Backport {target_branch_name}] {original_pr.get('title')}"
 
@@ -141,10 +139,14 @@ ___
             head=backport_branch_name,
         )
     except Exception as e:
-        app.display_error(f"Failed to create backport PR: {e}")
+        app.abort(f"Failed to create backport PR: {e}")
         return
 
-    backport_pr.add_to_labels(*backport_labels)
+    try:
+        backport_pr.add_to_labels(*backport_labels)
+    except Exception as e:
+        app.abort(f"Failed to add labels to backport PR: {e}")
+        return
 
     app.display(f"Backport workflow finished, PR created: {backport_pr.html_url}")
 
