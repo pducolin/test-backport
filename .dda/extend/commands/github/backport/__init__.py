@@ -123,9 +123,6 @@ def cmd(
 ___
 
 {original_body}
-
-___
-
 Co-authored-by: {original_commit.commit.author.name} <{original_commit.commit.author.email}>
 """
     backport_labels = get_non_backport_labels(labels) + ["backport", "bot"]
@@ -143,6 +140,7 @@ Co-authored-by: {original_commit.commit.author.name} <{original_commit.commit.au
         return
 
     try:
+        app.display(f"Adding labels to backport PR: {backport_labels}")
         backport_pr.add_to_labels(*backport_labels)
     except Exception as e:
         app.abort(f"Failed to add labels to backport PR: {e}")
