@@ -92,10 +92,16 @@ def cmd(
     # Get the original merge commit object
     original_commit = repo.get_commit(merge_commit_sha)
 
+    # Add co-author to the commit message:
+    # https://docs.github.com/en/pull-requests/committing-changes-to-your-project/creating-and-editing-commits/creating-a-commit-with-multiple-authors
+    backport_commit_message = f"""{original_commit.commit.message}
+
+Co-authored-by: {original_commit.commit.author.name} <{original_commit.commit.author.email}>
+"""
     # Create backport commit
     try:
         backport_commit = repo.create_git_commit(
-            message=original_commit.commit.message,
+            message=backport_commit_message,
             tree=repo.get_git_tree(original_commit.commit.tree.sha),
             parents=[target_head_commit],
             # Do NOT set committer AND author-> GitHub App/Actions user (Verified)
@@ -123,7 +129,6 @@ def cmd(
 ___
 
 {original_body}
-Co-authored-by: {original_commit.commit.author.name} <{original_commit.commit.author.email}>
 """
     backport_labels = get_non_backport_labels(labels) + ["backport", "bot"]
     backport_title = f"[Backport {target_branch_name}] {original_pr.get('title')}"
@@ -140,7 +145,6 @@ Co-authored-by: {original_commit.commit.author.name} <{original_commit.commit.au
         return
 
     try:
-        app.display(f"Adding labels to backport PR: {backport_labels}")
         backport_pr.add_to_labels(*backport_labels)
     except Exception as e:
         app.abort(f"Failed to add labels to backport PR: {e}")
@@ -180,5 +184,8 @@ def get_non_backport_labels(labels):
     Get all labels that are not backport labels.
     """
     return [
-        label for label in labels if not label.get("name", "").startswith("backport/")
+        label.get("name")
+        for label in labels
+        if len(label.get("name", "")) > 0
+        and not label.get("name", "").startswith("backport/")
     ]
