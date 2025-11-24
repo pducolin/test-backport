@@ -123,9 +123,6 @@ def cmd(
 ___
 
 {original_body}
-
-___
-
 Co-authored-by: {original_commit.commit.author.name} <{original_commit.commit.author.email}>
 """
     backport_labels = get_non_backport_labels(labels) + ["backport", "bot"]
