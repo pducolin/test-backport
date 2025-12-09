@@ -40,6 +40,16 @@ jobs:
             GITHUB_EVENT_PATH: ${{ github.event_path }}
         run: dda github cherry-pick
 
+      - name: Print cherry-pick outputs
+        run: |
+          if: steps.cherry-pick.outputs.head != ''
+          echo "base: ${{ steps.cherry-pick.outputs.base }}"
+          echo "head: ${{ steps.cherry-pick.outputs.head }}"
+          echo "original_pr_number: ${{ steps.cherry-pick.outputs.original_pr_number }}"
+          echo "original_title: ${{ steps.cherry-pick.outputs.original_title }}"
+          echo "original_body: ${{ steps.cherry-pick.outputs.original_body }}"
+          echo "original_labels: ${{ steps.cherry-pick.outputs.original_labels }}"
+
       - name: Create pull request
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         if: steps.cherry-pick.outputs.head != ''
