@@ -125,14 +125,8 @@ git worktree remove {worktree_path}"""
 
     # Create the backport PR
     original_body = original_pr.get("body", "")
-    backport_body = f"""Backport {merge_commit_sha} from #{original_pr_number}.
-
-___
-
-{original_body}
-"""
     backport_labels = [*get_non_backport_labels(labels), "backport", "bot"]
-    backport_title = f"[Backport {base}] {original_pr.get('title')}"
+    original_title = original_pr.get("title")
 
     # Set outputs
     with open(os.environ["GITHUB_OUTPUT"], "a") as f:
@@ -144,10 +138,10 @@ ___
             f.write(f"head={head}\n")
         if backport_labels:
             f.write(f"backport_labels={','.join(backport_labels)}\n")
-        if backport_title:
-            f.write(f"backport_title={backport_title}\n")
-        if backport_body:
-            f.write(f"backport_body={backport_body}\n")
+        if original_title:
+            f.write(f"original_tile={original_title}\n")
+        if original_body:
+            f.write(f"original_body={original_body}\n")
 
     app.display(f"Cherry-pick PR #{original_pr_number} to branch {head}")
 
