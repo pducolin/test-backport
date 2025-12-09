@@ -139,9 +139,9 @@ git worktree remove {worktree_path}"""
         if original_labels:
             f.write(f"original_labels={','.join(original_labels)}\n")
         if original_title:
-            f.write(f"original_tile={original_title}\n")
+            f.write(f"original_title={original_title}\n")
         if original_body:
-            f.write(f"original_body={original_body}\n")
+            f.write(f"original_body=original_body<<EOF\n{(original_body)}\nEOF\n")
 
     app.display(f"Cherry-pick PR #{original_pr_number} to branch {head}")
 
