@@ -118,7 +118,7 @@ git worktree remove {worktree_path}"""
 
     # git push
     app.subprocess.run(
-        ["git", "--set-upstream", "origin", head],
+        ["git", "push", "--set-upstream", "origin", head],
         cwd=repo_name,
         check=True,
     )
