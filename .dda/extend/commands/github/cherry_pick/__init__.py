@@ -43,7 +43,9 @@ def cmd(
     # Merge commit SHA (the commit created on base branch)
     merge_commit_sha = original_pr.get("merge_commit_sha")
     if not original_pr.get("merged", False) or not merge_commit_sha:
-        app.display_info("For security reasons, this action should only run on merged PRs.")
+        app.display_info(
+            "For security reasons, this action should only run on merged PRs."
+        )
         return
 
     original_pr_number = original_pr.get("number")
@@ -56,8 +58,7 @@ def cmd(
         return
 
     # Repository info
-    repository = event.get("repository", {}).get("name", "")
-    repo_name = repository.get("name", "")
+    repo_name = event.get("repository", {}).get("name", "")
 
     # Authenticate to GitHub and get a token
     token = os.getenv("GITHUB_TOKEN")
@@ -78,10 +79,14 @@ def cmd(
         ],
         check=True,
     )
-    app.subprocess.run(["git", "config", "--global", "user.name", "github-actions[bot]"], check=True)
+    app.subprocess.run(
+        ["git", "config", "--global", "user.name", "github-actions[bot]"], check=True
+    )
     app.subprocess.run(["git", "switch", target_branch_name], cwd=repo_name, check=True)
     target_branch_name = f"backport-{original_pr_number}-to-{target_branch_name}"
-    app.subprocess.run(["git", "switch", "-c", target_branch_name], cwd=repo_name, check=True)
+    app.subprocess.run(
+        ["git", "switch", "-c", target_branch_name], cwd=repo_name, check=True
+    )
 
     if app.subprocess.run(["git", "cherry-pick", merge_commit_sha], cwd=repo_name) != 0:
         app.subprocess.run(["git", "cherry-pick", "--abort"], cwd=repo_name, check=True)
@@ -106,7 +111,7 @@ ___
     backport_title = f"[Backport {target_branch_name}] {original_pr.get('title')}"
 
     # Set outputs
-    with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+    with open(os.environ["GITHUB_OUTPUT"], "a") as f:
         if original_pr_number:
             f.write(f"pr_number={original_pr_number}\n")
         if target_branch_name:
