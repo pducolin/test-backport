@@ -125,7 +125,7 @@ git worktree remove {worktree_path}"""
 
     # Create the backport PR
     original_body = original_pr.get("body", "")
-    backport_labels = [*get_non_backport_labels(labels), "backport", "bot"]
+    original_labels = get_non_backport_labels(labels)
     original_title = original_pr.get("title")
 
     # Set outputs
@@ -136,8 +136,8 @@ git worktree remove {worktree_path}"""
             f.write(f"base={base}\n")
         if head:
             f.write(f"head={head}\n")
-        if backport_labels:
-            f.write(f"backport_labels={','.join(backport_labels)}\n")
+        if original_labels:
+            f.write(f"original_labels={','.join(original_labels)}\n")
         if original_title:
             f.write(f"original_tile={original_title}\n")
         if original_body:

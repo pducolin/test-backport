@@ -33,8 +33,26 @@ jobs:
           version: v0.30.2 # DataDog/datadog-agent-dev version
           features: github
 
-      - name: Run backport script
+      - name: Run cherry-pick script
+        id: cherry-pick
         env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
             GITHUB_EVENT_PATH: ${{ github.event_path }}
         run: dda github cherry-pick
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: ${{ steps.cherry-pick.outputs.base }}
+          branch: ${{ steps.cherry-pick.outputs.head }}
+          sign-commits: true
+          title: "[Backport ${{steps.cherry-pick.outputs.base}}]  ${{steps.cherry-pick.outputs.original_title}}"
+          body: |
+            Backport ${{steps.cherry-pick.outputs.merge_commit_sha}} from #${{steps.cherry-pick.outputs.original_pr_number}}.
+            
+             ___
+
+            ${{ steps.cherry-pick.outputs.original_body }}
+
+          labels: ${{ steps.cherry-pick.outputs.original_labels }},backport,bot
