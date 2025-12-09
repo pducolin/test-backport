@@ -88,7 +88,12 @@ def cmd(
         ["git", "switch", "-c", target_branch_name], cwd=repo_name, check=True
     )
 
-    if app.subprocess.run(["git", "cherry-pick", merge_commit_sha], cwd=repo_name) != 0:
+    if (
+        app.subprocess.run(
+            ["git", "cherry-pick", "-x", merge_commit_sha], cwd=repo_name
+        )
+        != 0
+    ):
         app.subprocess.run(["git", "cherry-pick", "--abort"], cwd=repo_name, check=True)
         app.abort(f"Failed to cherry-pick {merge_commit_sha}")
 
