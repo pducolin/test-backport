@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: MIT
 from __future__ import annotations
 
+from heapq import merge
 import json
 import os
 from typing import TYPE_CHECKING
@@ -52,8 +53,8 @@ def cmd(
 
     # Extract labels and look for backport/<target>
     labels = original_pr.get("labels", [])
-    target_branch_name = find_backport_target(labels)
-    if not target_branch_name:
+    base = find_backport_target(labels)
+    if not base:
         app.display_info("No backport/<target> label found. Skipping backport.")
         return
 
@@ -82,11 +83,9 @@ def cmd(
     app.subprocess.run(
         ["git", "config", "--global", "user.name", "github-actions[bot]"], check=True
     )
-    app.subprocess.run(["git", "switch", target_branch_name], cwd=repo_name, check=True)
-    target_branch_name = f"backport-{original_pr_number}-to-{target_branch_name}"
-    app.subprocess.run(
-        ["git", "switch", "-c", target_branch_name], cwd=repo_name, check=True
-    )
+    app.subprocess.run(["git", "switch", base], cwd=repo_name, check=True)
+    head = f"backport-{original_pr_number}-to-{base}"
+    app.subprocess.run(["git", "switch", "-c", head], cwd=repo_name, check=True)
 
     if (
         app.subprocess.run(
@@ -95,11 +94,31 @@ def cmd(
         != 0
     ):
         app.subprocess.run(["git", "cherry-pick", "--abort"], cwd=repo_name, check=True)
-        app.abort(f"Failed to cherry-pick {merge_commit_sha}")
+        worktree_path = f".worktrees/backport-${base}"
+        error_message = f"""Failed to cherry-pick {merge_commit_sha}
+To backport manually, run these commands in your terminal:
+```bash
+# Fetch latest updates from GitHub
+git fetch
+# Create a new working tree
+git worktree add {worktree_path} {base}
+# Navigate to the new working tree
+cd {worktree_path}
+# Create a new branch
+git switch --create {head}
+# Cherry-pick the merged commit of this pull request and resolve the conflicts
+git cherry-pick -x --mainline 1 {merge_commit_sha}
+# Push it to GitHub
+git push --set-upstream origin {head}
+# Go back to the original working tree
+cd ../..
+# Delete the working tree
+git worktree remove {worktree_path}"""
+        app.abort(error_message)
 
     # git push
     app.subprocess.run(
-        ["git", "--set-upstream", "origin", target_branch_name],
+        ["git", "--set-upstream", "origin", head],
         cwd=repo_name,
         check=True,
     )
@@ -113,14 +132,16 @@ ___
 {original_body}
 """
     backport_labels = [*get_non_backport_labels(labels), "backport", "bot"]
-    backport_title = f"[Backport {target_branch_name}] {original_pr.get('title')}"
+    backport_title = f"[Backport {base}] {original_pr.get('title')}"
 
     # Set outputs
     with open(os.environ["GITHUB_OUTPUT"], "a") as f:
         if original_pr_number:
             f.write(f"pr_number={original_pr_number}\n")
-        if target_branch_name:
-            f.write(f"target_branch={target_branch_name}\n")
+        if base:
+            f.write(f"base={base}\n")
+        if head:
+            f.write(f"head={head}\n")
         if backport_labels:
             f.write(f"backport_labels={','.join(backport_labels)}\n")
         if backport_title:
@@ -128,7 +149,7 @@ ___
         if backport_body:
             f.write(f"backport_body={backport_body}\n")
 
-    app.display(f"Cherry-pick PR #{original_pr_number} to branch {target_branch_name}")
+    app.display(f"Cherry-pick PR #{original_pr_number} to branch {head}")
 
 
 def get_event() -> dict:
