@@ -1,25 +1,24 @@
 name: Backport PR
 
 on:
-  push:
-  # pull_request:
-  #   types:
-  #     - closed
-  #     - labeled
+  pull_request:
+    types:
+      - closed
+      - labeled
 
 jobs:
   backport:
     name: Backport PR
     runs-on: ubuntu-latest
-    # if: >
-    #   github.event.pull_request.merged
-    #   && (
-    #     github.event.action == 'closed'
-    #     || (
-    #       github.event.action == 'labeled'
-    #       && contains(github.event.label.name, 'backport')
-    #     )
-    #   )
+    if: >
+      github.event.pull_request.merged
+      && (
+        github.event.action == 'closed'
+        || (
+          github.event.action == 'labeled'
+          && contains(github.event.label.name, 'backport')
+        )
+      )
     permissions:
       contents: write       # create commits / branches
       pull-requests: write  # create PRs
@@ -41,7 +40,7 @@ jobs:
         env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
             GITHUB_EVENT_PATH: ${{ github.event_path }}
-        run: dda github cherry-pick --pr-number 58 --target-branch 0.1.x --repository pducolin/test-backport
+        run: dda github cherry-pick
       
       - name: Print cherry-pick outputs
         if: steps.cherry-pick.outputs.head != ''

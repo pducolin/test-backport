@@ -9,7 +9,6 @@ import os
 from typing import TYPE_CHECKING
 
 from dda.cli.base import dynamic_command, pass_app
-from dda.utils.ci import running_in_ci
 
 if TYPE_CHECKING:
     from dda.cli.application import Application
@@ -21,25 +20,30 @@ if TYPE_CHECKING:
     features=["github"],
 )
 @click.option("--pr-number", type=int)
-@click.option("--repository", type=str)
 @click.option("--target-branch", type=str)
 @pass_app
 def cmd(
     app: Application,
     pr_number: int | None = None,
-    repository: str | None = None,
     target_branch: str | None = None,
 ) -> None:
     """
     Cherry-pick a merged PR changes to another branch.
     """
-    event = get_event()
-
     # Fallback to pr_number and repository if not provided in the event
-    if pr_number and repository and target_branch:
-        original_pr = get_pr_by_number(pr_number, repository)
+    if pr_number and target_branch:
+        repository = (
+            app.subprocess.capture(
+                ["git", "config", "--get", "remote.origin.url"], check=True
+            )
+            .strip()
+            .rstrip(".git")
+            .split("/")[-1]
+        )
+        original_pr = get_pr_by_number(repository, pr_number)
         base = target_branch
     else:
+        event = get_event()
         original_pr = event.get("pull_request")
         if not original_pr:
             app.display_warning(
@@ -60,9 +64,6 @@ def cmd(
         return
 
     original_pr_number = original_pr.get("number")
-
-    # Repository info
-    repo_name = event.get("repository", {}).get("name", "")
 
     # Authenticate to GitHub and get a token
     token = os.getenv("GITHUB_TOKEN")
@@ -184,7 +185,7 @@ def get_non_backport_labels(labels: list[dict]) -> list[str]:
     return non_backport_labels
 
 
-def get_pr_by_number(pr_number: int, repository: str) -> dict:
+def get_pr_by_number(repository: str, pr_number: int) -> dict:
     """
     Get a PR by its number.
     """
