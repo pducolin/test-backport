@@ -1,24 +1,25 @@
 name: Backport PR
 
 on:
-  pull_request:
-    types:
-      - closed
-      - labeled
+  push:
+  # pull_request:
+  #   types:
+  #     - closed
+  #     - labeled
 
 jobs:
   backport:
     name: Backport PR
     runs-on: ubuntu-latest
-    if: >
-      github.event.pull_request.merged
-      && (
-        github.event.action == 'closed'
-        || (
-          github.event.action == 'labeled'
-          && contains(github.event.label.name, 'backport')
-        )
-      )
+    # if: >
+    #   github.event.pull_request.merged
+    #   && (
+    #     github.event.action == 'closed'
+    #     || (
+    #       github.event.action == 'labeled'
+    #       && contains(github.event.label.name, 'backport')
+    #     )
+    #   )
     permissions:
       contents: write       # create commits / branches
       pull-requests: write  # create PRs
@@ -26,6 +27,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
 
       - name: Install dda
         uses: DataDog/datadog-agent-dev@00e4a423088309efce1d5ba6b8c5366eef648710 # commit hash from the DataDog/datadog-agent-dev's install branch
@@ -38,17 +41,22 @@ jobs:
         env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
             GITHUB_EVENT_PATH: ${{ github.event_path }}
-        run: dda github cherry-pick
-
+        run: dda github cherry-pick --pr-number 58 --target-branch 0.1.x --repository pducolin/test-backport
+      
       - name: Print cherry-pick outputs
+        if: steps.cherry-pick.outputs.head != ''
         run: |
-          if: steps.cherry-pick.outputs.head != ''
           echo "base: ${{ steps.cherry-pick.outputs.base }}"
           echo "head: ${{ steps.cherry-pick.outputs.head }}"
           echo "original_pr_number: ${{ steps.cherry-pick.outputs.original_pr_number }}"
           echo "original_title: ${{ steps.cherry-pick.outputs.original_title }}"
           echo "original_body: ${{ steps.cherry-pick.outputs.original_body }}"
           echo "original_labels: ${{ steps.cherry-pick.outputs.original_labels }}"
+          echo "message: ${{ steps.cherry-pick.outputs.message }}"
+          echo "author: ${{ steps.cherry-pick.outputs.author }}"
+      - name: Reset cherry-pick
+        if: steps.cherry-pick.outputs.head != ''
+        run: git reset HEAD~1
 
       - name: Create pull request
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
@@ -67,3 +75,9 @@ jobs:
             ${{ steps.cherry-pick.outputs.original_body }}
 
           labels: ${{ steps.cherry-pick.outputs.original_labels }},backport,bot
+          commit-message: |
+            ${{ steps.cherry-pick.outputs.message }}
+            
+            ___
+
+            Co-authored-by: ${{ steps.cherry-pick.outputs.author }}

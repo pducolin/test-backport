@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 from __future__ import annotations
 
-from heapq import merge
+import click
 import json
 import os
 from typing import TYPE_CHECKING
@@ -20,26 +20,36 @@ if TYPE_CHECKING:
     context_settings={"help_option_names": [], "ignore_unknown_options": True},
     features=["github"],
 )
+@click.option("--pr-number", type=int)
+@click.option("--repository", type=str)
+@click.option("--target-branch", type=str)
 @pass_app
 def cmd(
     app: Application,
+    pr_number: int | None = None,
+    repository: str | None = None,
+    target_branch: str | None = None,
 ) -> None:
     """
     Cherry-pick a merged PR changes to another branch.
     """
-    if not running_in_ci():
-        app.display_error(
-            "This command is meant to be run in CI, not locally. Use `dda github backport` to run it in CI."
-        )
-        return
-
     event = get_event()
 
-    # Only handle pull_request events
-    original_pr = event.get("pull_request")
-    if not original_pr:
-        app.display_warning("No pull_request found. Skipping backport.")
-        return
+    # Fallback to pr_number and repository if not provided in the event
+    if pr_number and repository and target_branch:
+        original_pr = get_pr_by_number(pr_number, repository)
+        base = target_branch
+    else:
+        original_pr = event.get("pull_request")
+        if not original_pr:
+            app.display_warning(
+                "Expecting a pull request event or --pr-number, --repository and --target-branch arguments."
+            )
+            return
+        base = find_backport_target(original_pr.get("labels", []))
+        if not base:
+            app.display_warning("No backport/<target> label found. Skipping backport.")
+            return
 
     # Merge commit SHA (the commit created on base branch)
     merge_commit_sha = original_pr.get("merge_commit_sha")
@@ -51,13 +61,6 @@ def cmd(
 
     original_pr_number = original_pr.get("number")
 
-    # Extract labels and look for backport/<target>
-    labels = original_pr.get("labels", [])
-    base = find_backport_target(labels)
-    if not base:
-        app.display_info("No backport/<target> label found. Skipping backport.")
-        return
-
     # Repository info
     repo_name = event.get("repository", {}).get("name", "")
 
@@ -66,10 +69,6 @@ def cmd(
     if not token:
         app.abort("GITHUB_TOKEN is not set")
 
-    # git clone <full_repo_name>
-    clone_url = event.get("repository", {}).get("clone_url")
-    auth_url = clone_url.replace("https://", f"https://x-access-token:{token}@")
-    app.subprocess.run(["git", "clone", auth_url], check=True)
     app.subprocess.run(
         [
             "git",
@@ -83,17 +82,17 @@ def cmd(
     app.subprocess.run(
         ["git", "config", "--global", "user.name", "github-actions[bot]"], check=True
     )
-    app.subprocess.run(["git", "switch", base], cwd=repo_name, check=True)
+    app.subprocess.run(["git", "switch", base], check=True)
     head = f"backport-{original_pr_number}-to-{base}"
-    app.subprocess.run(["git", "switch", "-c", head], cwd=repo_name, check=True)
+    app.subprocess.run(["git", "switch", "-c", head], check=True)
 
     if (
         app.subprocess.run(
-            ["git", "cherry-pick", "-x", merge_commit_sha], cwd=repo_name
+            ["git", "cherry-pick", "-x", merge_commit_sha],
         )
         != 0
     ):
-        app.subprocess.run(["git", "cherry-pick", "--abort"], cwd=repo_name, check=True)
+        app.subprocess.run(["git", "cherry-pick", "--abort"], check=True)
         worktree_path = f".worktrees/backport-${base}"
         error_message = f"""Failed to cherry-pick {merge_commit_sha}
 To backport manually, run these commands in your terminal:
@@ -116,22 +115,23 @@ cd ../..
 git worktree remove {worktree_path}"""
         app.abort(error_message)
 
-    # git push
-    app.subprocess.run(
-        ["git", "push", "--set-upstream", "origin", head],
-        cwd=repo_name,
-        check=True,
+    # extract message and author from the cherry-pick commit
+    cherry_pick_message = app.subprocess.capture(
+        ["git", "log", "-1", "--pretty=format:%s%n%b"], check=True
+    )
+    cherry_pick_author = app.subprocess.capture(
+        ["git", "log", "-1", "--pretty=format:%an <%ae>"], check=True
     )
 
     # Create the backport PR
     original_body = original_pr.get("body", "")
-    original_labels = get_non_backport_labels(labels)
+    original_labels = get_non_backport_labels(original_pr.get("labels", []))
     original_title = original_pr.get("title")
 
     # Set outputs
     with open(os.environ["GITHUB_OUTPUT"], "a") as f:
         if original_pr_number:
-            f.write(f"pr_number={original_pr_number}\n")
+            f.write(f"original_pr_number={original_pr_number}\n")
         if base:
             f.write(f"base={base}\n")
         if head:
@@ -142,6 +142,10 @@ git worktree remove {worktree_path}"""
             f.write(f"original_title<<EOF\n{original_title}\nEOF\n")
         if original_body:
             f.write(f"original_body<<EOF\n{original_body}\nEOF\n")
+        if cherry_pick_message:
+            f.write(f"message<<EOF\n{cherry_pick_message}\nEOF\n")
+        if cherry_pick_author:
+            f.write(f"author<<EOF\n{cherry_pick_author}\nEOF\n")
 
     app.display(f"Cherry-pick PR #{original_pr_number} to branch {head}")
 
@@ -178,3 +182,15 @@ def get_non_backport_labels(labels: list[dict]) -> list[str]:
             continue
         non_backport_labels.append(name)
     return non_backport_labels
+
+
+def get_pr_by_number(pr_number: int, repository: str) -> dict:
+    """
+    Get a PR by its number.
+    """
+    from github import Github
+
+    g = Github(os.getenv("GITHUB_TOKEN"))
+    repo = g.get_repo(repository)
+    pr = repo.get_pull(pr_number)
+    return pr.raw_data
